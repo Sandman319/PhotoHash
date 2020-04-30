@@ -1,0 +1,16 @@
+﻿$ProjectFolder = 'C:\job\project\PhotoHash'
+$PathToMySQLdll = "$ProjectFolder\dll\MySql.Data.dll"
+$IPaddressOfMySQLserver = '10.23.129.7'
+$rootDBuser = "sqladmin"
+$rootDBpass = "sqladminpass"
+$DBuser = "phunicuser"
+$DBpass = "phunicpass"
+$DBname = "PHUnic"
+$LogProcessingErrors = "$ProjectFolder\log\ph-errors.txt"
+$FlagDBfound = $false
+$Molotilka = "c:\del me"
+$PHUnicPhotoPath = "C:\PHUnicPhoto"
+$PHUnicVideoPath = "C:\PHUnicVideo"
+$FilterSetVideo = "*.avi","*.mp4","*.mpg","*.mpeg","*.wmv"
+$FilterSetPhoto = "*.bmp","*.jpg","*.jpeg","*.png","*.tif","*.tiff"
+$DoubleExtension = "ph-double"
