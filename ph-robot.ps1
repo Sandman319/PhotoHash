@@ -1,22 +1,28 @@
-﻿
+﻿cls
+$Time_stamp = $(Get-Date -UFormat '%Y-%m-%d %H:%M:%S')
+#$ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
+$ScriptDirectory = "C:\job\Project\PhotoHash"
+try 
+{
+ . ("$ScriptDirectory\ph-variable.ps1")
+ . ("$ScriptDirectory\ph-func.ps1")
+ . ("$ScriptDirectory\ph-sqlCommand.ps1")
+}
+catch {Write-Host "Error while loading supporting PowerShell Scripts"}
 
+#GetVariableFromIniFile -FileName "ph-variable.ini"
 
+Add-Type –Path $PathToMySQLdll
+$Connection = [MySql.Data.MySqlClient.MySqlConnection]@{ConnectionString="server=$IPaddressOfMySQLserver;uid=$rootDBuser;pwd=$rootDBpass;charset=utf8"}
 
+Get-DataFromSQL -Command $CheckDatabases | foreach {if ($_.Database -eq $DBname) {$FlagDBfound = $true}}
+if (!$FlagDBfound) 
+{
+ Write-ToSQLbasePacket -CommandSet $CreateDBCommandSet
+ $Connection = [MySql.Data.MySqlClient.MySqlConnection]@{ConnectionString="server=$IPaddressOfMySQLserver;uid=$DBuser;pwd=$DBpass;database=$DBname;charset=utf8"}
+ Write-ToSQLbasePacket -CommandSet $CreateDBTablesCommandSet
+}
+else {$Connection = [MySql.Data.MySqlClient.MySqlConnection]@{ConnectionString="server=$IPaddressOfMySQLserver;uid=$DBuser;pwd=$DBpass;database=$DBname;charset=utf8"}}
 
-
-
-
-
-
-
-
-
-
-
-$SourcePath = "c:\del me"
-$FilterSetVideo = "*.avi","*.mp4","*.mpg","*.mpeg","*.wmv"
-$FilterSetPicture = "*.bmp","*.jpg","*.jpeg","*.png","*.tif","*.tiff"
-
-
-get-childitem -Path $SourcePath -Recurse -Include $FilterSetPicture | where { ! $_.PSIsContainer } | % {
- "$($_.BaseName)|$($_.Extension)|$($_.DirectoryName)|$($_.Length)|$($_.LastWriteTime)|$((Get-FileHash -LiteralPath $_.FullName).hash)"}
+File-Processing -SourcePath $Molotilka -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension
+File-Processing -SourcePath $Molotilka -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension
