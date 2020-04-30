@@ -1,4 +1,5 @@
 ﻿cls
+$Time_stamp = $(Get-Date -UFormat '%Y-%m-%d %H:%M:%S')
 #$ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 $ScriptDirectory = "C:\job\Project\PhotoHash"
 try 
@@ -23,3 +24,5 @@ if (!$FlagDBfound)
 }
 else {$Connection = [MySql.Data.MySqlClient.MySqlConnection]@{ConnectionString="server=$IPaddressOfMySQLserver;uid=$DBuser;pwd=$DBpass;database=$DBname;charset=utf8"}}
 
+File-Processing -SourcePath $Molotilka -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension
+File-Processing -SourcePath $Molotilka -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension
