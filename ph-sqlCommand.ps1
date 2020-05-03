@@ -31,10 +31,8 @@ CREATE TABLE t_path
 (
 path_id int unsigned NOT NULL auto_increment,
 path varchar(255) NOT NULL,
-etalon bool,
 Time_stamp datetime,
 Unique (path),
-Index (etalon),
 Index (path),
 constraint pk_t_path primary key (path_id)
 ); 

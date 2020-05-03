@@ -24,5 +24,13 @@ if (!$FlagDBfound)
 }
 else {$Connection = [MySql.Data.MySqlClient.MySqlConnection]@{ConnectionString="server=$IPaddressOfMySQLserver;uid=$DBuser;pwd=$DBpass;database=$DBname;charset=utf8"}}
 
+Get-Date
+File-Processing -SourcePath $PHUnicPhotoPath -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension -VaultCheckFlag $True
+Get-Date
+File-Processing -SourcePath $PHUnicVideoPath -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension -VaultCheckFlag $True
+
+Get-Date
 File-Processing -SourcePath $Molotilka -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension
+Get-Date
 File-Processing -SourcePath $Molotilka -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension
+Get-Date
