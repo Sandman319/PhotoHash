@@ -113,6 +113,50 @@ function Write-ToSQLbasePacketPerLine
  $Connection.Close()
 }
 
+Function Write-FileToDatabase
+(
+ [object] $File,
+ [string] $sha256hash,
+ [string] $NameTail,
+ [string] $PHUnicPath,
+ [string] $Year,
+ [string] $Month
+)
+{
+ $flagAcceptString = $true
+ $filename = $($File.BaseName).Replace("'","''")
+ $filetype = $File.Extension
+ $path = $($File.DirectoryName).Replace("\","\\")
+ $filesize = $File.Length
+ $fileTStmp1 = "$($File.LastWriteTime)".split(" ")
+ $fileTStmp2 = $fileTStmp1[0].split("/")
+ $fileTS = "$Year-$Month-$($fileTStmp2[1]) $($fileTStmp1[1])"
+ $UnicPath = $("$PHUnicPath\$Year\$Month").Replace("\","\\")
+ if ($flagAcceptString) 
+ {
+  if ($filename -eq "") {$filename = "UNKNOWN"}
+  if ($filetype -eq "") {$filetype = "UNKNOWN"}
+  if ($path.Length -gt 254) {$flagAcceptString = $false; Write-host "Path too LONG!`t$_"}
+  if ($path.Length -eq "") {$flagAcceptString = $false; Write-host "Path is UNKNOWN!`t$_"}
+  if ($filesize -eq "") {$flagAcceptString = $false; Write-host "File size is UNKNOWN!`t$_"}
+  if ($fileTS -eq "") {$flagAcceptString = $false; Write-host "File TimeStamp is UNKNOWN!`t$_"}
+  if ($Sha256hash -eq "") {$flagAcceptString = $false; Write-host "File hash is UNKNOWN!`t$_"}
+ }
+ if ($flagAcceptString) 
+ {
+  $CommandAddFile = ""
+  $CommandAddFile += "INSERT INTO t_filename (filename_id,filename,time_stamp) SELECT * FROM (SELECT null,'$filename$NameTail','$Time_stamp') as tmp WHERE not EXISTS (SELECT filename FROM t_filename WHERE filename = '$filename$NameTail');"
+  $CommandAddFile += "INSERT INTO t_filetype (filetype_id,filetype,time_stamp) SELECT * FROM (SELECT null,'$filetype','$Time_stamp') as tmp WHERE not EXISTS (SELECT filetype FROM t_filetype WHERE filetype = '$filetype');"
+  $CommandAddFile += "INSERT INTO t_path (path_id,path,time_stamp) SELECT * FROM (SELECT null,'$UnicPath','$Time_stamp') as tmp WHERE not EXISTS (SELECT path FROM t_path WHERE path = '$UnicPath');"
+  $CommandAddFile += "INSERT INTO t_hash (filename_id,filetype_id,path_id,Sha256hash,filesize,fileTS,Time_stamp) SELECT * FROM (SELECT (SELECT filename_id FROM t_filename WHERE filename = '$filename$NameTail'),(SELECT filetype_id FROM t_filetype WHERE filetype = '$filetype'),(SELECT path_id FROM t_path WHERE path = '$UnicPath'),'$Sha256hash',$filesize,'$fileTS','$Time_stamp') as tmp;"
+  $CommandAddFile += "UPDATE t_hash SET Time_stamp='$Time_stamp' WHERE  Sha256hash = '$Sha256hash';"
+  Write-ToSQLbasePacket -CommandSet $CommandAddFile  
+  Return $True
+ }
+ else {Return $False}
+}
+
+
 Function File-Processing
 (
  [string] $SourcePath,
@@ -135,36 +179,14 @@ Function File-Processing
    $CheckFileExist = "select count(sha256hash) as num from t_hash where sha256hash = '$sha256hash'"
    if ($(Get-DataFromSQL -Command $CheckFileExist).Num -eq 0) 
    {
-    $flagAcceptString = $true
-    $filename = $($_.BaseName).Replace("'","''")
-    $filetype = $_.Extension
-    $path = $($_.DirectoryName).Replace("\","\\")
-    $filesize = $_.Length
     $fileTStmp1 = "$($_.LastWriteTime)".split(" ")
     $fileTStmp2 = $fileTStmp1[0].split("/")
     $Year = $fileTStmp2[2]
     $Month = $fileTStmp2[0]
-    $fileTS = "$Year-$Month-$($fileTStmp2[1]) $($fileTStmp1[1])"
-    $UnicPath = $("$PHUnicPath\$Year\$Month").Replace("\","\\")
     $NameTail = "_$($sha256hash.Substring($sha256hash.Length-$sha256hashRenameLength,$sha256hashRenameLength))"
-    if ($flagAcceptString) {
-     if ($filename -eq "") {$filename = "UNKNOWN"}
-     if ($filetype -eq "") {$filetype = "UNKNOWN"}
-     if ($path.Length -gt 254) {$flagAcceptString = $false; Write-host "Path too LONG!`t$_"}
-     if ($path.Length -eq "") {$flagAcceptString = $false; Write-host "Path is UNKNOWN!`t$_"}
-     if ($filesize -eq "") {$flagAcceptString = $false; Write-host "File size is UNKNOWN!`t$_"}
-     if ($fileTS -eq "") {$flagAcceptString = $false; Write-host "File TimeStamp is UNKNOWN!`t$_"}
-     if ($Sha256hash -eq "") {$flagAcceptString = $false; Write-host "File hash is UNKNOWN!`t$_"}
-    }
-    if ($flagAcceptString) {
-     $CommandAddFile = ""
-     $CommandAddFile += "INSERT INTO t_filename (filename_id,filename,time_stamp) SELECT * FROM (SELECT null,'$filename$NameTail','$Time_stamp') as tmp WHERE not EXISTS (SELECT filename FROM t_filename WHERE filename = '$filename$NameTail');"
-     $CommandAddFile += "INSERT INTO t_filetype (filetype_id,filetype,time_stamp) SELECT * FROM (SELECT null,'$filetype','$Time_stamp') as tmp WHERE not EXISTS (SELECT filetype FROM t_filetype WHERE filetype = '$filetype');"
-     $CommandAddFile += "INSERT INTO t_path (path_id,path,time_stamp) SELECT * FROM (SELECT null,'$UnicPath','$Time_stamp') as tmp WHERE not EXISTS (SELECT path FROM t_path WHERE path = '$UnicPath');"
-     $CommandAddFile += "INSERT INTO t_hash (filename_id,filetype_id,path_id,Sha256hash,filesize,fileTS,Time_stamp) SELECT * FROM (SELECT (SELECT filename_id FROM t_filename WHERE filename = '$filename$NameTail'),(SELECT filetype_id FROM t_filetype WHERE filetype = '$filetype'),(SELECT path_id FROM t_path WHERE path = '$UnicPath'),'$Sha256hash',$filesize,'$fileTS','$Time_stamp') as tmp;"
-     $CommandAddFile += "UPDATE t_hash SET Time_stamp='$Time_stamp' WHERE  Sha256hash = '$Sha256hash';"
-     Write-ToSQLbasePacket -CommandSet $CommandAddFile
-     
+    if ($(Write-FileToDatabase -File $_ -sha256hash $sha256hash -NameTail $NameTail -PHUnicPath $PHUnicPath -Year $Year -Month $Month))
+    {
+
      if (!(Test-Path "$PHUnicPath")) {New-Item -ItemType Directory -Path "$PHUnicPath" | out-null}
      if (!(Test-Path "$PHUnicPath\$Year")) {New-Item -ItemType Directory -Path "$PHUnicPath\$Year" | out-null}
      if (!(Test-Path "$PHUnicPath\$Year\$Month")) {New-Item -ItemType Directory -Path "$PHUnicPath\$Year\$Month" | out-null}
@@ -173,11 +195,36 @@ Function File-Processing
       Copy-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -Destination "$PHUnicPath\$Year\$Month"
       if (Test-Path "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)") 
       {
-       Rename-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$($_.Extension).$DoubleExtension"
        Rename-Item -LiteralPath "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$NameTail$($_.Extension)"
+       if ($FilterMovMod -eq $($_.Extension))
+       {
+        (cmd /c "$PathToFFMPEG\ffmpeg.exe" -i "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4") 2>$null
+        $NewMP4file = Get-item "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4"
+        $NewMP4file.LastWriteTime = $_.LastWriteTime
+        Rename-Item -LiteralPath "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" -NewName "$($_.BaseName)$NameTail$($_.Extension).$MovModExtension"
+        Rename-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$($_.Extension).$DoubleExtension"
+        
+        $sha256hashNewMP4file = (Get-FileHash -LiteralPath $NewMP4file.FullName).hash
+        $CheckFileExistNewMP4file = "select count(sha256hash) as num from t_hash where sha256hash = '$sha256hashNewMP4file'"
+        if ($(Get-DataFromSQL -Command $CheckFileExistNewMP4file).Num -eq 0) 
+        {
+         $fileTStmpNewMP4file1 = "$($NewMP4file.LastWriteTime)".split(" ")
+         $fileTStmpNewMP4file2 = $fileTStmpNewMP4file1[0].split("/")
+         $YearNewMP4file = $fileTStmpNewMP4file2[2]
+         $MonthNewMP4file = $fileTStmpNewMP4file2[0]
+         $NameTailNewMP4file = "_$($sha256hashNewMP4file.Substring($sha256hashNewMP4file.Length-$sha256hashRenameLength,$sha256hashRenameLength))"
+         if (!$(Write-FileToDatabase -File $NewMP4file -sha256hash $sha256hashNewMP4file -NameTail $NameTailNewMP4file -PHUnicPath $PHUnicPath -Year $YearNewMP4file -Month $MonthNewMP4file))
+         {
+          Write-host "Проблема с файлом $($NewMP4file.FullName)"
+         }
+        }
+        else {Write-host "Переконвертированный файл уже есть в БД $($NewMP4file.FullName)"} 
+       }
+       else {Rename-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$($_.Extension).$DoubleExtension"}
       }
      }
     }
+    else {Write-host "Файл не был сохранен в БД"}
    }
    else
    {
