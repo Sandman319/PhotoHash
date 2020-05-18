@@ -120,7 +120,8 @@ Function Write-FileToDatabase
  [string] $NameTail,
  [string] $PHUnicPath,
  [string] $Year,
- [string] $Month
+ [string] $Month,
+ [boolean] $FlagMovMod = $false
 )
 {
  $flagAcceptString = $true
@@ -132,6 +133,7 @@ Function Write-FileToDatabase
  $fileTStmp2 = $fileTStmp1[0].split("/")
  $fileTS = "$Year-$Month-$($fileTStmp2[1]) $($fileTStmp1[1])"
  $UnicPath = $("$PHUnicPath\$Year\$Month").Replace("\","\\")
+ $UnicPath = $($UnicPath -split ":\\\\")[1]
  if ($flagAcceptString) 
  {
   if ($filename -eq "") {$filename = "UNKNOWN"}
@@ -142,6 +144,7 @@ Function Write-FileToDatabase
   if ($fileTS -eq "") {$flagAcceptString = $false; Write-host "File TimeStamp is UNKNOWN!`t$_"}
   if ($Sha256hash -eq "") {$flagAcceptString = $false; Write-host "File hash is UNKNOWN!`t$_"}
  }
+ if (($filename -ne "UNKNOWN") -and $FlagMovMod) {$filename = ($filename -split "_hash")[0]}
  if ($flagAcceptString) 
  {
   $CommandAddFile = ""
@@ -168,10 +171,11 @@ Function File-Processing
 {
  if (Test-Path "$SourcePath") 
  {
-  $FileList = get-childitem -Path $SourcePath -Recurse -Include $FilterSet | where { ! $_.PSIsContainer }
+  $FileList = get-childitem -Path $SourcePath -Recurse -Include $FilterSet -Force | where { ! $_.PSIsContainer }
   $tenPersentPie = [math]::Round($($FileList.Count)/10)
   $i = 0
   $Percent = 0
+  Write-host "Найдено файлов: $($FileList.Count)"
   $FileList | % {
    $i=$i+1
    if ($i%$tenPersentPie -eq 0) {$Percent = $Percent+10; Write-host "$Percent%"}
@@ -183,27 +187,24 @@ Function File-Processing
     $fileTStmp2 = $fileTStmp1[0].split("/")
     $Year = $fileTStmp2[2]
     $Month = $fileTStmp2[0]
-    $NameTail = "_$($sha256hash.Substring($sha256hash.Length-$sha256hashRenameLength,$sha256hashRenameLength))"
-    if ($(Write-FileToDatabase -File $_ -sha256hash $sha256hash -NameTail $NameTail -PHUnicPath $PHUnicPath -Year $Year -Month $Month))
-    {
+    $NameTail = "_hash$($sha256hash.Substring($sha256hash.Length-$sha256hashRenameLength,$sha256hashRenameLength))"
 
-     if (!(Test-Path "$PHUnicPath")) {New-Item -ItemType Directory -Path "$PHUnicPath" | out-null}
-     if (!(Test-Path "$PHUnicPath\$Year")) {New-Item -ItemType Directory -Path "$PHUnicPath\$Year" | out-null}
-     if (!(Test-Path "$PHUnicPath\$Year\$Month")) {New-Item -ItemType Directory -Path "$PHUnicPath\$Year\$Month" | out-null}
-     if (!(Test-Path "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)"))
+    if (!(Test-Path "$PHUnicPath")) {New-Item -ItemType Directory -Path "$PHUnicPath" | out-null}
+    if (!(Test-Path "$PHUnicPath\$Year")) {New-Item -ItemType Directory -Path "$PHUnicPath\$Year" | out-null}
+    if (!(Test-Path "$PHUnicPath\$Year\$Month")) {New-Item -ItemType Directory -Path "$PHUnicPath\$Year\$Month" | out-null}
+    if (!(Test-Path "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)"))
+    {
+     Copy-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -Destination "$PHUnicPath\$Year\$Month"
+     if (Test-Path "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)") 
      {
-      Copy-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -Destination "$PHUnicPath\$Year\$Month"
-      if (Test-Path "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)") 
+      Rename-Item -LiteralPath "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$NameTail$($_.Extension)"
+      if ($FilterMovMod -eq $($_.Extension))
       {
-       Rename-Item -LiteralPath "$PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$NameTail$($_.Extension)"
-       if ($FilterMovMod -eq $($_.Extension))
+       (cmd /c "$PathToFFMPEG\ffmpeg.exe" -i "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4") 2>$null
+       if ((Test-Path "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4")) 
        {
-        (cmd /c "$PathToFFMPEG\ffmpeg.exe" -i "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4") 2>$null
         $NewMP4file = Get-item "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4"
         $NewMP4file.LastWriteTime = $_.LastWriteTime
-        Rename-Item -LiteralPath "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" -NewName "$($_.BaseName)$NameTail$($_.Extension).$MovModExtension"
-        Rename-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$($_.Extension).$DoubleExtension"
-        
         $sha256hashNewMP4file = (Get-FileHash -LiteralPath $NewMP4file.FullName).hash
         $CheckFileExistNewMP4file = "select count(sha256hash) as num from t_hash where sha256hash = '$sha256hashNewMP4file'"
         if ($(Get-DataFromSQL -Command $CheckFileExistNewMP4file).Num -eq 0) 
@@ -212,19 +213,40 @@ Function File-Processing
          $fileTStmpNewMP4file2 = $fileTStmpNewMP4file1[0].split("/")
          $YearNewMP4file = $fileTStmpNewMP4file2[2]
          $MonthNewMP4file = $fileTStmpNewMP4file2[0]
-         $NameTailNewMP4file = "_$($sha256hashNewMP4file.Substring($sha256hashNewMP4file.Length-$sha256hashRenameLength,$sha256hashRenameLength))"
-         if (!$(Write-FileToDatabase -File $NewMP4file -sha256hash $sha256hashNewMP4file -NameTail $NameTailNewMP4file -PHUnicPath $PHUnicPath -Year $YearNewMP4file -Month $MonthNewMP4file))
-         {
-          Write-host "Проблема с файлом $($NewMP4file.FullName)"
-         }
+         $NameTailNewMP4file = "_hash$($sha256hashNewMP4file.Substring($sha256hashNewMP4file.Length-$sha256hashRenameLength,$sha256hashRenameLength))"
+         Rename-Item -LiteralPath $NewMP4file.FullName -NewName "$(($($NewMP4file.BaseName) -split ""_hash"")[0])$NameTailNewMP4file.mp4"
+         if (!$(Write-FileToDatabase -File $NewMP4file -sha256hash $sha256hashNewMP4file -NameTail $NameTailNewMP4file -PHUnicPath $PHUnicPath -Year $YearNewMP4file -Month $MonthNewMP4file -FlagMovMod $true)) {Write-host "Информация о файле не была сохранена в БД: $($NewMP4file.FullName)"}
+         Rename-Item -LiteralPath "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" -NewName "$($_.BaseName)$NameTail$($_.Extension).$MovModExtension"
+         if (!$(Write-FileToDatabase -File $_ -sha256hash $sha256hash -NameTail $NameTail -PHUnicPath $PHUnicPath -Year $Year -Month $Month)) {Write-host "Информация о файле не была сохранена в БД: $($_.FullName)"}
+        }  
+        else 
+        {
+         Remove-Item "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4" -Force
+         Remove-Item "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" -Force
+
+         $CommandFindByHash = "select concat(path,'\\',filename,filetype) as name from t_hash join t_filename using (filename_id) join t_filetype using (filetype_id) join t_path using (path_id) where sha256hash = '$sha256hashNewMP4file';"
+         $FileName = $($(Get-DataFromSQL -Command $CommandFindByHash).name)
+         Write-host "Переконвертированный файл уже есть в БД. Подробности:`n    Хэш mp4-файла: $sha256hashNewMP4file`
+    Исходный файл в источнике: $($_.DirectoryName)\$($_.BaseName)$($_.Extension)`n    Скопированный в уникальное хранилище: $PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)`
+    Совпавший по хэшу файл в БД:    $FileName`n    Имя сконвертированного файла из-за котрого подняли тревогу: $($NewMP4file.FullName)"
         }
-        else {Write-host "Переконвертированный файл уже есть в БД $($NewMP4file.FullName)"} 
        }
-       else {Rename-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$($_.Extension).$DoubleExtension"}
+       else
+       {
+        Remove-Item "$PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)" -Force
+        Write-Host "Пропущен файл $($_.FullName)" -ForegroundColor Red
+        Write-Host "Ошибка при конвертировании. Подробности:`n   Исходный: $PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail$($_.Extension)`
+   Должен был стать: $PHUnicPath\$Year\$Month\$($_.BaseName)$NameTail.mp4"
+       }
       }
+      else 
+      {
+       if (!$(Write-FileToDatabase -File $_ -sha256hash $sha256hash -NameTail $NameTail -PHUnicPath $PHUnicPath -Year $Year -Month $Month)) {Write-host "Информация о файле не была сохранена в БД: $($_.FullName)"}
+      } 
+      Rename-Item -LiteralPath "$($_.DirectoryName)\$($_.BaseName)$($_.Extension)" -NewName "$($_.BaseName)$($_.Extension).$DoubleExtension" 
      }
     }
-    else {Write-host "Файл не был сохранен в БД"}
+    else {Write-host "Файл с таким именем уже был в месте расположения, до начала копирования: `n   Уже имеющийся: $PHUnicPath\$Year\$Month\$($_.BaseName)$($_.Extension)`n   Второй экземпляр, который пытаемся скопировать: $($_.FullName)"}
    }
    else
    {
@@ -239,5 +261,8 @@ Function File-Processing
    }
   }
  }
- else {if (!$VaultCheckFlag) {Warning-Send "Указанный в настройках источник данных не существует на диске"}}
+ else 
+ {
+  if (!$VaultCheckFlag) {Warning-Send "Указанный в настройках источник данных не существует на диске"}
+ }
 }
