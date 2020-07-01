@@ -33,10 +33,10 @@ if (test-connection $IPaddressOfMySQLserver -Quiet)
   Write-host "Начали проверку хранилища уникальных данных на задвоенность файлов"
   Write-host "Обработка фото"
   Get-Date
-  Check-UnicVault -SourcePath $PHUnicPhotoPath
+  File-Processing -SourcePath $PHUnicPhotoPath -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension -VaultCheckFlag $True
   Write-host "Обработка видео"
   Get-Date
-  Check-UnicVault -SourcePath $PHUnicVideoPath
+  File-Processing -SourcePath $PHUnicVideoPath -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension -VaultCheckFlag $True
  }
  
  foreach ($M in $Molotilka)
@@ -45,11 +45,11 @@ if (test-connection $IPaddressOfMySQLserver -Quiet)
   {
    Write-Host "Обрабатывается исходная папка: $M`n" -ForegroundColor Green
    Get-Date
-   #Write-host "Обработка фото"
-   #File-Processing -SourcePath $M -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension
+   Write-host "Обработка фото"
+   File-Processing -SourcePath $M -FilterSet $FilterSetPhoto -PHUnicPath $PHUnicPhotoPath -DoubleExtension $DoubleExtension
    Get-Date
-   Write-host "Обработка видео"
-   File-Processing -SourcePath $M -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension
+   #Write-host "Обработка видео"
+   #File-Processing -SourcePath $M -FilterSet $FilterSetVideo -PHUnicPath $PHUnicVideoPath -DoubleExtension $DoubleExtension
    Get-Date
    Write-host "Обработка завершена"
   }
